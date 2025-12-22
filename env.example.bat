@@ -1,0 +1,2 @@
+@echo off
+set FIRETV_IP=YOUR_FIRETV_IP_HERE
