@@ -32,6 +32,8 @@ Designed to run **fully headless** and be triggered via a **single global keyboa
 - Python 3.x (via `py` launcher)
 - Android Platform Tools (`adb`)
 - Spotify Developer App credentials
+- PowerShell 5.1 (Windows built-in)
+- BurntToast PowerShell module (for native Windows notifications)
 
 ---
 
@@ -143,20 +145,20 @@ Recommended settings:
 
 ## Usage
 
-Press the configured shortcut:
+Trigger the configured global shortcut:
 
-* If the TV is **off or asleep**:
+### When the TV is off or asleep
+- The TV is woken up automatically
+- Spotify is launched on the TV
+- The current Spotify session is transferred to the TV
 
-  * TV wakes up
-  * Spotify launches
-  * Current playback is transferred to the TV
-* If the TV is **already on**:
+### Smart Spotify Connect toggle
+- If Spotify is **playing on the TV** → playback is **paused**
+- If Spotify is **playing on another device** (PC / phone) → playback is **transferred to the TV and continues playing**
+- If playback is **paused or inactive** → playback is **transferred to the TV and starts automatically**
 
-  * TV is turned off
-  * Script exits immediately
-
-All operations run silently.
-Errors are reported via **Windows toast notifications** only.
+All operations run **fully headless**.
+Errors and status updates are reported exclusively via **native Windows toast notifications**.
 
 ---
 

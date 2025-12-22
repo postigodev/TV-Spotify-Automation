@@ -1,25 +1,22 @@
 param(
-    [string]$Title = "TV Spotify Automation",
-    [string]$Message = "An error occurred."
+  [Parameter(Mandatory=$true)][string]$Title,
+  [Parameter(Mandatory=$true)][string]$Message
 )
 
-# Native Windows toast via COM
-$AppId = "TVSpotifyAutomation"
+try {
+  Import-Module BurntToast -ErrorAction Stop
 
-$Template = @"
-<toast>
-  <visual>
-    <binding template="ToastGeneric">
-      <text>$Title</text>
-      <text>$Message</text>
-    </binding>
-  </visual>
-</toast>
-"@
+  New-BurntToastNotification `
+    -Text $Title, $Message `
+    -AppLogo (Join-Path $PSScriptRoot "icon.png") `
+    -Silent:$false
 
-$Xml = New-Object Windows.Data.Xml.Dom.XmlDocument
-$Xml.LoadXml($Template)
-
-$Toast = [Windows.UI.Notifications.ToastNotification]::new($Xml)
-$Notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($AppId)
-$Notifier.Show($Toast)
+} catch {
+  # Fallback duro si BurntToast no está
+  try {
+    Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
+    [System.Windows.Forms.MessageBox]::Show($Message, $Title, 'OK', 'Information') | Out-Null
+  } catch {
+    Write-Host "[$Title] $Message"
+  }
+}
