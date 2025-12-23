@@ -5,8 +5,6 @@ Automates controlling a **Fire TV–based smart TV** from Windows and transferri
 
 Designed to run **fully headless** and be triggered via a **single global keyboard shortcut**.
 
----
-
 ## Features
 
 ### 🎛️ Smart Spotify Toggle (device-aware)
@@ -68,8 +66,6 @@ No unnecessary transfers. No playback spam.
 * Shows timing logs, ADB steps, and Python output
 * Default mode is completely silent
 
----
-
 ## Requirements
 
 * Windows 10 / 11
@@ -80,8 +76,6 @@ No unnecessary transfers. No playback spam.
 * Spotify Developer App credentials
 * PowerShell 5.1 (Windows built-in)
 * BurntToast PowerShell module (for notifications)
-
----
 
 ## Configuration Overview
 
@@ -96,8 +90,6 @@ This project cleanly separates **device configuration** from **Spotify credentia
   * Optional local `.env` file supported
 
 No secrets are hardcoded or committed.
-
----
 
 ## Setup
 
@@ -189,8 +181,6 @@ Recommended settings:
 * Run normally (not elevated)
 * Visibility: **Hidden**
 
----
-
 ## Usage
 
 Trigger the configured global shortcut:
@@ -209,8 +199,6 @@ Trigger the configured global shortcut:
 
 All operations run **fully headless**.
 Errors are reported exclusively via **native Windows toast notifications**.
-
----
 
 ## Notes
 
