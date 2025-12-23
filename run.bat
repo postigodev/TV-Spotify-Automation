@@ -1,6 +1,20 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
 
+REM =========================
+REM Debug flag: run.bat --debug | -d | DEBUG=1 env var
+REM =========================
+set "DEBUG="
+if /I "%~1"=="--debug" set "DEBUG=1"
+if /I "%~1"=="-d"      set "DEBUG=1"
+if /I "%DEBUG%"=="1"   set "DEBUG=1"
+
+REM Tiny logger
+set "DBG_ECHO=rem"
+if defined DEBUG set "DBG_ECHO=echo"
+
+%DBG_ECHO% [!time!] BAT start
+
 REM Repository root directory (where this .bat lives)
 set "ROOT=%~dp0"
 if "%ROOT:~-1%"=="\" set "ROOT=%ROOT:~0,-1%"
@@ -14,7 +28,6 @@ if exist "%ROOT%\env.bat" call "%ROOT%\env.bat"
 REM ---- ADB location ----
 set "ADB=adb"
 
-REM If adb is not in PATH, fall back to repo-bundled adb
 where adb >nul 2>nul
 if errorlevel 1 (
   if not exist "%ROOT%\tools\platform-tools\adb.exe" (
@@ -36,13 +49,13 @@ for /L %%i in (1,1,8) do (
   "%ADB%" devices 2>nul | findstr /I "%FIRETV_IP%:5555" >nul
   if not errorlevel 1 (
     set "CONNECTED=1"
-    goto :adb_ok
+    goto :after_adb_loop
   )
   "%ADB%" connect %FIRETV_IP%:5555 >nul 2>&1
   timeout /t 1 >nul
 )
 
-:adb_ok
+:after_adb_loop
 if not defined CONNECTED (
   %NOTIFY% -Title "Fire TV offline" -Message "ADB could not reach %FIRETV_IP%:5555. Make sure the TV is awake and ADB debugging is authorized."
   exit /b 2
@@ -52,15 +65,14 @@ REM =========================
 REM Screen state detection (portable)
 REM sets SCREEN_ON=1 if ON/interactive, else leaves undefined
 REM =========================
+%DBG_ECHO% [!time!] before detect_screen
 call :detect_screen
+%DBG_ECHO% [!time!] after detect_screen
 
 REM ---- If screen is OFF/unknown, try a wake-safe key first ----
 if not defined SCREEN_ON (
-  REM Try WAKEUP (doesn't usually toggle off if already on)
   "%ADB%" shell input keyevent 224 >nul 2>&1
   timeout /t 1 >nul
-
-  REM Re-check
   call :detect_screen
 )
 
@@ -71,56 +83,57 @@ if not defined SCREEN_ON (
 )
 
 REM Always bring Spotify to foreground (safe if already open)
+%DBG_ECHO% [!time!] before monkey (open Spotify)
 "%ADB%" shell monkey -p com.spotify.tv.android 1 >nul 2>&1
+%DBG_ECHO% [!time!] after monkey
 
-REM ---- Run Spotify toggle/transfer with smart retry ----
-REM Behavior:
-REM  - exit 10: paused (success, no retry)
-REM  - exit 0 : playing on TV (success)
-REM  - exit 2 : TV device not found yet -> retry
-REM  - else   : error -> notify
-set "SUCCESS="
+
+REM =========================
+REM Python: run once; only retry rc=2 up to 2 more times
+REM =========================
 set "LAST_RC="
+set /a "TRY=1"
 
-for /L %%i in (1,1,12) do (
+:python_run
+%DBG_ECHO% [!time!] before python attempt !TRY!
+
+if defined DEBUG (
+  py "%ROOT%\spotify_transfer.py"
+) else (
   py "%ROOT%\spotify_transfer.py" >nul 2>&1
-  set "LAST_RC=!errorlevel!"
+)
 
-  if "!LAST_RC!"=="10" (
-    set "SUCCESS=1"
-    goto :done
-  )
+set "LAST_RC=%errorlevel%"
+%DBG_ECHO% [!time!] after python attempt !TRY! (rc=%LAST_RC%)
 
-  if "!LAST_RC!"=="0" (
-    set "SUCCESS=1"
-    goto :done
-  )
+REM Success
+if "%LAST_RC%"=="0"  goto :ok
+if "%LAST_RC%"=="10" goto :ok
 
-  if "!LAST_RC!"=="2" (
-    REM Device not visible yet, keep retrying
+REM Retry only if device not found (rc=2) and tries left
+if "%LAST_RC%"=="2" (
+  if %TRY% LSS 3 (
+    set /a "TRY+=1"
     timeout /t 1 >nul
-  ) else (
-    REM Any other error is not retryable
-    goto :done
+    goto :python_run
   )
 )
 
-:done
-if not defined SUCCESS (
-  if "%LAST_RC%"=="1" (
-    %NOTIFY% -Title "Spotify credentials missing" -Message "Set SPOTIPY_CLIENT_ID / SPOTIPY_CLIENT_SECRET / SPOTIPY_REDIRECT_URI."
-    exit /b 1
-  )
-
-  if "%LAST_RC%"=="2" (
-    %NOTIFY% -Title "Spotify transfer failed" -Message "TV device not found in Spotify Connect after retries."
-    exit /b 3
-  )
-
-  %NOTIFY% -Title "Spotify error" -Message "spotify_transfer.py failed (exit code %LAST_RC%)."
-  exit /b 4
+REM Errors -> notify
+if "%LAST_RC%"=="1" (
+  %NOTIFY% -Title "Spotify credentials missing" -Message "Set SPOTIPY_CLIENT_ID / SPOTIPY_CLIENT_SECRET / SPOTIPY_REDIRECT_URI."
+  exit /b 1
 )
 
+if "%LAST_RC%"=="2" (
+  %NOTIFY% -Title "Spotify transfer failed" -Message "TV device not found in Spotify Connect after retries."
+  exit /b 3
+)
+
+%NOTIFY% -Title "Spotify error" -Message "spotify_transfer.py failed (exit code %LAST_RC%)."
+exit /b 4
+
+:ok
 exit /b 0
 
 
@@ -132,7 +145,6 @@ REM =========================================================
 :detect_screen
 set "SCREEN_ON="
 
-REM 1) dumpsys power (common Android signals)
 for %%P in (
   "mInteractive=true"
   "mScreenOn=true"
@@ -148,7 +160,6 @@ for %%P in (
   )
 )
 
-REM 2) dumpsys display (some TV builds)
 for %%D in (
   "mScreenState=ON"
   "STATE_ON"
@@ -160,7 +171,6 @@ for %%D in (
   )
 )
 
-REM 3) dumpsys window (often helpful on TVs)
 for %%W in (
   "mAwake=true"
   "mScreenOnFully=true"

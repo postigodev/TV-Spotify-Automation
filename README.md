@@ -1,6 +1,6 @@
 # TV Spotify Automation (Windows)
 
-Automates controlling a Fire TV–based smart TV from Windows and transferring the
+Automates controlling a **Fire TV–based smart TV** from Windows and transferring the
 **currently playing Spotify session** to the TV using **Spotify Connect**.
 
 Designed to run **fully headless** and be triggered via a **single global keyboard shortcut**.
@@ -9,31 +9,77 @@ Designed to run **fully headless** and be triggered via a **single global keyboa
 
 ## Features
 
-- **Smart power toggle**
-  - If the TV is **off / asleep** → wakes it up and continues
-  - If the TV is **already on** → turns it off and exits
-- Wake Fire TV via **ADB over TCP**
-- Launch Spotify on the TV
-- Transfer current playback using **Spotify Web API (Spotify Connect)**
-- Automatic retries until the TV appears in Spotify Connect
-- One-key shortcut integration with **PowerToys**
-- Runs fully hidden (no terminal windows)
-- **Error notifications via native Windows toasts**
-- Works on restricted networks (e.g. campus Wi-Fi, no multicast)
-- No hardcoded paths, IPs, or credentials
+### 🎛️ Smart Spotify Toggle (device-aware)
+
+* If Spotify is **playing on the TV** → **pauses playback**
+* If Spotify is **paused on the TV** → **resumes instantly** (no transfer)
+* If Spotify is **playing on another device** (PC / phone) → **transfers playback to the TV**
+* If the TV is **off or asleep** → wakes it up and continues automatically
+
+No unnecessary transfers. No playback spam.
+
+---
+
+### ⚡ Fast & Reliable Playback Transfer
+
+* Uses **Spotify Web API (Spotify Connect)** for playback control
+* Avoids `force_play` latency issues on TVs
+* Explicit `start_playback` for faster and more consistent resumes
+* Minimal API calls, no busy polling
+
+---
+
+### 📺 Fire TV Control (ADB over TCP)
+
+* Wake Fire TV from sleep
+* Detect screen/power state
+* Launch Spotify on the TV
+* Works on **restricted networks** (campus Wi-Fi, no multicast / mDNS)
+
+---
+
+### 🧠 Robust Execution Model
+
+* Runs **fully headless**
+* **Single execution by default**
+* Retries Spotify device discovery **only when needed**
+
+  * Max **2 retries** (device not found)
+* Prevents toggle loops or API spam
+
+---
+
+### 🔔 UX & Integration
+
+* Native **Windows toast notifications** for errors
+* Designed for **PowerToys global keyboard shortcuts**
+* No terminal windows
+* No hardcoded paths, IPs, or credentials
+
+---
+
+### 🐞 Debug Mode (Optional)
+
+* Enable verbose logs with:
+
+  ```bash
+  run.bat --debug
+  ```
+* Shows timing logs, ADB steps, and Python output
+* Default mode is completely silent
 
 ---
 
 ## Requirements
 
-- Windows 10 / 11
-- Spotify Premium
-- Fire TV (integrated or stick)
-- Python 3.x (via `py` launcher)
-- Android Platform Tools (`adb`)
-- Spotify Developer App credentials
-- PowerShell 5.1 (Windows built-in)
-- BurntToast PowerShell module (for native Windows notifications)
+* Windows 10 / 11
+* Spotify Premium
+* Fire TV (integrated or stick)
+* Python 3.x (via `py` launcher)
+* Android Platform Tools (`adb`)
+* Spotify Developer App credentials
+* PowerShell 5.1 (Windows built-in)
+* BurntToast PowerShell module (for notifications)
 
 ---
 
@@ -41,11 +87,13 @@ Designed to run **fully headless** and be triggered via a **single global keyboa
 
 This project cleanly separates **device configuration** from **Spotify credentials**:
 
-- **Fire TV settings**
-  - Handled via a local `env.bat` file (Windows-friendly)
-- **Spotify API credentials**
-  - Loaded from environment variables
-  - Supports both **system-wide env vars** and an optional local `.env` file
+* **Fire TV settings**
+
+  * Stored in a local `env.bat` file (Windows-friendly)
+* **Spotify API credentials**
+
+  * Loaded from environment variables
+  * Optional local `.env` file supported
 
 No secrets are hardcoded or committed.
 
@@ -55,20 +103,20 @@ No secrets are hardcoded or committed.
 
 ### 1. Fire TV
 
-- Enable **ADB Debugging** in Developer Options
-- Ensure the Fire TV is reachable over the network
-- Accept the ADB authorization prompt on first connection
+* Enable **ADB Debugging** in Developer Options
+* Ensure the Fire TV is reachable over the network
+* Accept the ADB authorization prompt on first connection
 
 ---
 
 ### 2. Install dependencies
 
-- Install **Android Platform Tools** (adb)
-- Install Python dependencies:
+* Install **Android Platform Tools** (adb)
+* Install Python dependencies:
 
 ```bash
 py -m pip install spotipy python-dotenv
-````
+```
 
 ---
 
@@ -77,7 +125,7 @@ py -m pip install spotipy python-dotenv
 * Create a Spotify app in the Spotify Developer Dashboard
 * Set Redirect URI:
 
-```
+```text
 http://127.0.0.1:8888/callback
 ```
 
@@ -87,7 +135,7 @@ http://127.0.0.1:8888/callback
 
 Copy the example file:
 
-```bash
+```text
 env.example.bat → env.bat
 ```
 
@@ -111,7 +159,7 @@ Set the following variables in your OS:
 * `SPOTIPY_CLIENT_SECRET`
 * `SPOTIPY_REDIRECT_URI`
 
-This is the most robust option for headless execution and keyboard shortcuts.
+Best option for headless execution and keyboard shortcuts.
 
 ---
 
@@ -119,7 +167,7 @@ This is the most robust option for headless execution and keyboard shortcuts.
 
 Copy:
 
-```bash
+```text
 env.example → .env
 ```
 
@@ -131,7 +179,7 @@ The script automatically loads `.env` if present using `python-dotenv`.
 
 ---
 
-### 6. Keyboard shortcut (optional but recommended)
+### 6. Keyboard shortcut (recommended)
 
 Configure **PowerToys → Keyboard Manager → Run Program**
 to trigger `run.bat` with a global shortcut.
@@ -147,31 +195,34 @@ Recommended settings:
 
 Trigger the configured global shortcut:
 
-### When the TV is off or asleep
-- The TV is woken up automatically
-- Spotify is launched on the TV
-- The current Spotify session is transferred to the TV
+### TV off or asleep
 
-### Smart Spotify Connect toggle
-- If Spotify is **playing on the TV** → playback is **paused**
-- If Spotify is **playing on another device** (PC / phone) → playback is **transferred to the TV and continues playing**
-- If playback is **paused or inactive** → playback is **transferred to the TV and starts automatically**
+* TV is woken up automatically
+* Spotify is launched on the TV
+* Playback is transferred and starts playing
+
+### TV on
+
+* Playing on TV → **pause**
+* Paused on TV → **resume**
+* Playing elsewhere → **transfer to TV**
 
 All operations run **fully headless**.
-Errors and status updates are reported exclusively via **native Windows toast notifications**.
+Errors are reported exclusively via **native Windows toast notifications**.
 
 ---
 
 ## Notes
 
-* Fire TV discovery does not rely on multicast; works on restricted networks
+* Fire TV discovery does **not** rely on multicast
 * ADB is used only for power state and app launch
 * Playback control is handled entirely by Spotify Connect
 * If the TV is fully powered off (no network), software-only wake is not possible
-* Designed for portability and long-running personal automation
+* Designed as a fast, personal automation tool
 
 ---
 
 ## License
 
 MIT
+
