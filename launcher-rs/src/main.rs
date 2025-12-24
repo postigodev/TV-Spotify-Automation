@@ -1,9 +1,10 @@
 use dotenvy::dotenv;
 use rspotify::{AuthCodeSpotify, Config, Credentials, OAuth, clients::OAuthClient, scopes};
 use std::env;
-use std::io;
-use std::path;
 use std::process::Command;
+use std::thread;
+use std::time::Duration;
+use std::time::Instant;
 
 struct AppConfig {
     client_id: String,
@@ -14,7 +15,6 @@ struct AppConfig {
 
 //init_client
 fn init_config() -> Result<AppConfig, env::VarError> {
-    dotenv().ok();
     Ok(AppConfig {
         client_id: env::var("RSPOTIFY_CLIENT_ID")?,
         client_secret: env::var("RSPOTIFY_CLIENT_SECRET")?,
@@ -24,51 +24,58 @@ fn init_config() -> Result<AppConfig, env::VarError> {
 }
 
 // Return stdout as String so callers can parse it
-fn call_adb_stdout(args: &[&str]) -> Result<String, std::io::Error> {
+fn call_adb_stdout(args: &[&str]) -> anyhow::Result<String> {
     let output = Command::new("adb").args(args).output()?;
+    if !output.status.success() {
+        anyhow::bail!(
+            "adb {:?} failed: {}",
+            args,
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+    }
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
-fn connect_tv(ip: &str) -> bool {
+fn connect_tv(ip: &str) -> anyhow::Result<()> {
     let needle = format!("{}:5555", ip);
-    let devices = call_adb_stdout(&["devices"]).expect("adb devices failed");
-    let mut is_connected = devices.contains(&needle);
-    if !is_connected {
-        call_adb_stdout(&["connect", &needle]).expect("connection fail");
-        let devices2 = call_adb_stdout(&["devices"]).expect("adb devices failed");
-        is_connected = devices2.contains(&needle);
+    let devices = call_adb_stdout(&["devices"])?;
+    if devices.contains(&needle) {
+        return Ok(());
     }
-    return is_connected;
+    call_adb_stdout(&["connect", &needle])?;
+    let devices2 = call_adb_stdout(&["devices"])?;
+    if devices2.contains(&needle) {
+        return Ok(());
+    } else {
+        anyhow::bail!("Could not connect to TV at {}", needle);
+    }
 }
-
 // detects if TV on or off
-fn screen_is_on() -> bool {
-    if let Ok(out) = call_adb_stdout(&["shell", "dumpsys", "power"]) {
-        let s = out.to_lowercase();
-        return s.contains("minteractive=true")
-            || s.contains("mscreenon=true")
-            || s.contains("state=on")
-            || s.contains("mwakefulness=awake")
-            || s.contains("mwakefulness=dreaming");
-    }
-    false
+fn screen_is_on() -> anyhow::Result<bool> {
+    let output = call_adb_stdout(&["shell", "dumpsys", "power"])?;
+    let s = output.to_lowercase();
+    return Ok(s.contains("minteractive=true")
+        || s.contains("mscreenon=true")
+        || s.contains("state=on")
+        || s.contains("mwakefulness=awake")
+        || s.contains("mwakefulness=dreaming"));
 }
 
 // turns on the tv
-fn ensure_awake(max_tries: u32) -> bool {
+fn ensure_awake(max_tries: u32) -> anyhow::Result<bool> {
     for _ in 0..max_tries {
-        if screen_is_on() {
-            return true;
+        if screen_is_on()? {
+            return Ok(true);
         }
-        let _ = call_adb_stdout(&["shell", "input", "keyevent", "224"]);
+        call_adb_stdout(&["shell", "input", "keyevent", "224"])?;
         std::thread::sleep(std::time::Duration::from_millis(800));
     }
     screen_is_on()
 }
 
-fn open_spotify() {
-    call_adb_stdout(&["shell", "monkey", "-p", "com.spotify.tv.android", "1"])
-        .expect("failed to open spotify");
+fn open_spotify() -> anyhow::Result<()> {
+    call_adb_stdout(&["shell", "monkey", "-p", "com.spotify.tv.android", "1"])?;
+    Ok(())
 }
 
 /*
@@ -94,7 +101,7 @@ fn build_spotify(cfg: &AppConfig) -> AuthCodeSpotify {
     AuthCodeSpotify::with_config(creds, oauth, config)
 } */
 
-fn call_python() -> io::Result<()> {
+fn call_python() -> anyhow::Result<()> {
     let current_dir = env::current_dir()?;
     let path = current_dir.join("src").join("spotify_transfer.py");
     let output = Command::new("python3").arg(&path).output()?;
@@ -102,17 +109,24 @@ fn call_python() -> io::Result<()> {
     println!("stdout:\n{}", String::from_utf8_lossy(&output.stdout));
     eprintln!("stderr:\n{}", String::from_utf8_lossy(&output.stderr));
 
+    if !output.status.success() {
+        anyhow::bail!("python failed with status {}", output.status);
+    }
+
     Ok(())
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let start = Instant::now();
+    dotenv().ok();
     let cfg = init_config()?;
-    println!("adb connected? {}", connect_tv(&cfg.firetv_ip));
-    ensure_awake(4);
-    open_spotify();
+    connect_tv(&cfg.firetv_ip)?;
+    ensure_awake(4)?;
+    open_spotify()?;
     call_python()?;
     println!("Done.");
+    println!("Elapsed time: {:.2?}", start.elapsed().as_secs_f64());
     Ok(())
 
     // SPOTIFY UNDER DEVELOPMENT
