@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 dotenvy = "0.15"
-rspotify = { version = "0.13", features = ["client-reqwest", "env-file", "cli"] }
+rspotify = { version = "0.15.3", features = ["client-reqwest", "env-file"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 anyhow = "1"
+serde_json = "1"

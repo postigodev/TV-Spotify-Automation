@@ -3,3 +3,6 @@
 *.log
 __pycache__/
 env.bat
+/launcher-rs/target/
+/launcher-rs/.cargo/
+/launcher-rs/Cargo.lock
